@@ -71,3 +71,6 @@ ENV/
 # mypy
 .mypy_cache/
 EOF
+
+# Ignore the raw_analyst_ratings.csv file
+data/rawanalyst_data/raw_analyst_ratings.csv
