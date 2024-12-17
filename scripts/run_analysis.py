@@ -4,6 +4,8 @@ import seaborn as sns
 from data_loader import load_news_data
 from sentiment_analyzer import apply_sentiment_analysis
 from datetime import datetime
+from correlation_analysis import analyze_correlation, plot_correlation_analysis
+import os
 
 def perform_descriptive_statistics(df):
     print("\n=== Descriptive Statistics ===")
@@ -95,6 +97,55 @@ def analyze_sentiment_distribution(df):
     
     return df
 
+def perform_correlation_analysis(news_df, symbols=['AAPL', 'GOOGL', 'MSFT']):
+    """
+    Analyze correlation between news sentiment and stock movements
+    """
+    print("\n=== Correlation Analysis ===")
+    
+    # Create output directory for correlation analysis
+    os.makedirs('outputs/correlation', exist_ok=True)
+    
+    for symbol in symbols:
+        try:
+            # Load stock data
+            stock_file = f'data/yfinance_data/{symbol}_historical_data.csv'
+            stock_df = pd.read_csv(stock_file)
+            stock_df['Date'] = pd.to_datetime(stock_df['Date'])
+            stock_df.set_index('Date', inplace=True)
+            
+            # Calculate daily returns
+            stock_df['Returns'] = stock_df['Close'].pct_change()
+            
+            # Prepare news data for this symbol
+            symbol_news = news_df[news_df['symbol'] == symbol].copy()
+            
+            # Aggregate daily sentiment
+            daily_sentiment = symbol_news.groupby('date').agg({
+                'sentiment': 'mean',
+                'headline': 'count'
+            }).reset_index()
+            daily_sentiment.columns = ['Date', 'avg_sentiment', 'news_count']
+            
+            # Analyze correlation
+            correlation, lagged_correlations, merged_df = analyze_correlation(stock_df, daily_sentiment)
+            
+            # Create visualizations
+            plot_correlation_analysis(merged_df, f'outputs/correlation/{symbol}')
+            
+            # Print results
+            print(f"\nCorrelation Analysis Results for {symbol}:")
+            print(f"Same-day correlation: {correlation:.4f}")
+            print("\nLagged correlations:")
+            for lag, corr in lagged_correlations:
+                print(f"t+{lag} correlation: {corr:.4f}")
+            
+            # Save processed data
+            merged_df.to_csv(f'outputs/correlation/{symbol}_correlation_data.csv')
+            
+        except Exception as e:
+            print(f"Error analyzing correlation for {symbol}: {str(e)}")
+
 def main():
     # Load the financial news dataset
     print("Loading news data...")
@@ -108,6 +159,9 @@ def main():
     perform_descriptive_statistics(news_df)
     perform_time_analysis(news_df)
     news_df = analyze_sentiment_distribution(news_df)
+    
+    # Perform correlation analysis
+    perform_correlation_analysis(news_df)
     
     # Save processed dataset
     news_df.to_csv('outputs/processed_news_data.csv', index=False)
